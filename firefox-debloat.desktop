@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Firefox Debloat
+Comment=Privacy and performance hardening for Firefox
+Exec=bash -c 'python3 "$(dirname "$(realpath "%k")")/gui.py"'
+Icon=/home/user/firefox-debloat/firefox-debloat-icon.svg
+Terminal=false
+Categories=Utility;System;
+StartupNotify=true

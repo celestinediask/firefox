@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# firefox-debloat-tui.sh — Terminal UI for debloat-firefox.sh
+# tui.sh — Terminal UI for debloat.sh
 # Navigate: ↑ ↓ / k j   Activate: Enter / Space / mouse click
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEBLOAT="$SCRIPT_DIR/debloat-firefox.sh"
+DEBLOAT="$SCRIPT_DIR/debloat.sh"
 
 # ---------------------------------------------------------------------------
 # Colours
@@ -521,7 +521,7 @@ activate() {
 # ---------------------------------------------------------------------------
 main() {
     if [[ ! -f "$DEBLOAT" ]]; then
-        printf '%sError:%s debloat-firefox.sh not found at %s\n' \
+        printf '%sError:%s debloat.sh not found at %s\n' \
             "$RED" "$RESET" "$DEBLOAT" >&2
         exit 1
     fi

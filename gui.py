@@ -5,7 +5,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib, Gdk
 
-import json, shlex, subprocess, threading, shutil, glob, time, os, sys
+import json, shlex, subprocess, threading, shutil, glob, time, os, sys, tempfile, urllib.request
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 DEBLOAT     = os.path.join(SCRIPT_DIR, 'debloat.sh')
@@ -465,6 +465,13 @@ ACTIONS = [
         'confirm': None,
     },
     {
+        'id':      'install_ublock',
+        'label':   'Install uBlock Origin',
+        'desc':    'Download and install the latest uBlock Origin ad blocker system-wide.',
+        'icon':    'security-medium-symbolic',
+        'confirm': None,
+    },
+    {
         'id':      'clear',
         'label':   'Clear User Data',
         'desc':    'Delete ~/.mozilla and ~/.cache/mozilla. '
@@ -915,6 +922,63 @@ class MainWindow(Gtk.ApplicationWindow):
             return False
         return True
 
+    # -- Install uBlock Origin ------------------------------------------------
+
+    _UBLOCK_URL = (
+        'https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi'
+    )
+    _UBLOCK_ID = 'uBlock0@raymondhill.net'
+
+    def _do_install_ublock(self):
+        self._log('==> Installing uBlock Origin\n\n')
+
+        self._log('  Downloading uBlock Origin from addons.mozilla.org ...\n')
+        try:
+            req = urllib.request.Request(
+                self._UBLOCK_URL,
+                headers={'User-Agent': 'firefox-debloat-gui/1.0'},
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                xpi_data = resp.read()
+            self._log(f'  Downloaded {len(xpi_data):,} bytes\n')
+        except Exception as exc:
+            self._log(f'  Download failed: {exc}\n')
+            return
+
+        installs = self._find_ff_installs()
+        if not installs:
+            self._log('\n  No Firefox installations found — cannot install system-wide.\n')
+            return
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xpi') as tmp:
+            tmp.write(xpi_data)
+            tmp_path = tmp.name
+
+        try:
+            for install in installs:
+                ext_dir = os.path.join(install, 'browser', 'extensions')
+                dest    = os.path.join(ext_dir, f'{self._UBLOCK_ID}.xpi')
+                self._log(f'\n  Installing to {dest}\n')
+                script = (
+                    f'mkdir -p {shlex.quote(ext_dir)} && '
+                    f'cp {shlex.quote(tmp_path)} {shlex.quote(dest)} && '
+                    f'chmod 644 {shlex.quote(dest)}'
+                )
+                proc = subprocess.run(
+                    ['sudo', 'bash', '-c', script],
+                    capture_output=True,
+                )
+                if proc.returncode == 0:
+                    self._log('    OK\n')
+                else:
+                    self._log(
+                        f'    Failed: {proc.stderr.decode(errors="replace").strip()}\n'
+                    )
+        finally:
+            os.unlink(tmp_path)
+
+        self._log('\n   uBlock Origin installed. Restart Firefox to activate.\n')
+
     # -- Other actions --------------------------------------------------------
 
     def _do_clear(self):
@@ -954,6 +1018,19 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log(f'  Removed {js}\n')
         if not js_files:
             self._log('  No profile user.js files found\n')
+
+        self._log('\n==> Removing uBlock Origin\n\n')
+        installs = self._find_ff_installs()
+        ublock_found = False
+        for install in installs:
+            ublock = os.path.join(install, 'browser', 'extensions',
+                                  f'{self._UBLOCK_ID}.xpi')
+            if os.path.exists(ublock):
+                self._shell(['sudo', 'rm', '-f', '--', ublock])
+                self._log(f'  Removed {ublock}\n')
+                ublock_found = True
+        if not ublock_found:
+            self._log('  uBlock Origin not found (already clean)\n')
 
         self._log('\n==> Clearing user data\n\n')
         for p in ('~/.mozilla', '~/.cache/mozilla'):
